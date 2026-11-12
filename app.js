@@ -86,6 +86,9 @@ async function startEmulator(box, extraConfig) {
     wasm_path: "lib/v86.wasm",
     vga_memory_size: 2 * 1024 * 1024,
   }, extraConfig);
+  // CPU互換モード: JITを切ってインタプリタ実行にする。低速だが実行経路が
+  // 別物になるため、JIT側の相性で止まるソフトが通ることがある（両エンジン対応）
+  if (box.cpuMode === "compat") cfg.disable_jit = true;
   // 仮想ネットワーク（実際につながる公開リレー経由）。ゲスト側にNICドライバが
   // 要る: 64bitは e1000（多くのOSにドライバあり）、32bitは ne2k (RTL8029)。
   if (box.network !== false && !cfg.net_device) {
@@ -420,10 +423,11 @@ async function unpackState(payload) {
 function renderTitle(box) {
   const name = box.customName || box.defaultName;
   const coreNote = box.is64Box && box.cpuCores > 1 ? `・CPU ${box.cpuCores}コア` : "";
-  box.el.querySelector(".box-title").textContent = `🦊 ${name} #${box.num}（RAM ${box.memoryMB}MB${coreNote}）`;
+  const cpuNote = box.cpuMode === "compat" ? "・互換CPU" : "";
+  box.el.querySelector(".box-title").textContent = `🦊 ${name} #${box.num}（RAM ${box.memoryMB}MB${coreNote}${cpuNote}）`;
 }
 
-function createBox(presetKey, memoryMB, cpuCores, customName, network) {
+function createBox(presetKey, memoryMB, cpuCores, customName, network, cpuMode) {
   counter += 1;
   const el = template.content.firstElementChild.cloneNode(true);
   const isCustom = presetKey === "custom" || presetKey === "custom64";
@@ -436,6 +440,7 @@ function createBox(presetKey, memoryMB, cpuCores, customName, network) {
   const box = {
     el, emu: null, presetKey, memoryMB, cpuCores: cpuCores || 1, num: counter,
     defaultName, customName: customName || "", is64Box, network: network !== false,
+    cpuMode: cpuMode || "jit",
     engine: presetKey === "custom64" || (PRESETS[presetKey] && PRESETS[presetKey].engine === "v64") ? "v64" : "v86",
     powerBtn: el.querySelector('[data-act="power"]'),
   };
@@ -551,6 +556,7 @@ const memorySel = $id("memory");
 const cpuSel = $id("cpu-cores");
 const nameInput = $id("machine-name");
 const netChk = $id("network-on");
+const cpuModeSel = $id("cpu-mode");
 
 function syncLauncher() {
   if (!presetSel) return;
@@ -571,6 +577,7 @@ if (presetSel) {
       if (saved.memory && memorySel) memorySel.value = saved.memory;
       if (saved.cpu && cpuSel) cpuSel.value = saved.cpu;
       if (typeof saved.net === "boolean" && netChk) netChk.checked = saved.net;
+      if (saved.cpuMode && cpuModeSel) cpuModeSel.value = saved.cpuMode;
     }
   } catch (e) { /* 保存が無ければ既定値 */ }
   const saveLauncher = () => {
@@ -580,6 +587,7 @@ if (presetSel) {
         memory: memorySel ? memorySel.value : "",
         cpu: cpuSel ? cpuSel.value : "",
         net: netChk ? netChk.checked : true,
+        cpuMode: cpuModeSel ? cpuModeSel.value : "jit",
       }));
     } catch (e) { /* 保存できない環境では何もしない */ }
   };
@@ -587,6 +595,7 @@ if (presetSel) {
   if (memorySel) memorySel.addEventListener("change", saveLauncher);
   if (cpuSel) cpuSel.addEventListener("change", saveLauncher);
   if (netChk) netChk.addEventListener("change", saveLauncher);
+  if (cpuModeSel) cpuModeSel.addEventListener("change", saveLauncher);
 }
 
 const addBtn = $id("add-box");
@@ -597,7 +606,8 @@ if (addBtn) {
     const cpuCores = cpuSel ? parseInt(cpuSel.value, 10) || 1 : 1;
     const name = nameInput ? nameInput.value.trim() : "";
     const network = netChk ? netChk.checked : true;
-    const box = createBox(presetSel ? presetSel.value : "linux", memoryMB, cpuCores, name, network);
+    const cpuMode = cpuModeSel ? cpuModeSel.value : "jit";
+    const box = createBox(presetSel ? presetSel.value : "linux", memoryMB, cpuCores, name, network, cpuMode);
     bootPreset(box);
   });
 }
@@ -605,7 +615,7 @@ syncLauncher();
 
 // 最初に Linux を1台、起動した状態で表示する
 window.addEventListener("load", () => {
-  const box = createBox("linux", 64, 1, "");
+  const box = createBox("linux", 64, 1, "", true, cpuModeSel ? cpuModeSel.value : "jit");
   bootPreset(box);
   // 64bitエンジンは裏で先読みしておく（追加した瞬間に起動できるように）
   const preload = () => { loadV64().catch(() => {}); };
