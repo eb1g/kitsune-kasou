@@ -23,6 +23,93 @@ const QCOW2_DISKS = {
   "500": { url: "disks/blank-500gb.qcow2", size: 262144, label: "500 GB" },
 };
 
+// FAT32 でフォーマット済みの空HDDイメージをその場で作る。
+// パーティション作成とフォーマットの工程（と途中の再起動）を飛ばせるので、
+// Windows 9x 系などのOSセットアップが速く進む。
+function makeFat32Hdd(sizeMB) {
+  const SECTOR = 512;
+  const totalSectors = Math.floor(sizeMB * 1024 * 1024 / SECTOR);
+  const partStart = 2048; // 1MiB アライン
+  const partSectors = totalSectors - partStart;
+  const buf = new ArrayBuffer(totalSectors * SECTOR);
+  const u8 = new Uint8Array(buf);
+  const dv = new DataView(buf);
+  // ---- MBR ----
+  // 起動コードは最小のスタブ: int 18h でBIOSの次の起動デバイスへ回す。
+  // これが無いと「署名だけあるMBR」をBIOSが実行して固まってしまう。
+  // セットアップが本物の起動コードを書き込んだ後は、そちらが使われる。
+  u8.set([0x31, 0xc0, 0x8e, 0xd8, 0x8e, 0xd0, 0xbc, 0x00, 0x7c, 0xcd, 0x18, 0xeb, 0xfe], 0);
+  const mbr = 446;
+  u8[mbr] = 0x80; // 起動可能
+  u8[mbr + 1] = 0xfe; u8[mbr + 2] = 0xff; u8[mbr + 3] = 0xff; // CHS開始（LBA使用時の慣例値）
+  u8[mbr + 4] = 0x0c; // FAT32 (LBA)
+  u8[mbr + 5] = 0xfe; u8[mbr + 6] = 0xff; u8[mbr + 7] = 0xff; // CHS終了
+  dv.setUint32(mbr + 8, partStart, true);
+  dv.setUint32(mbr + 12, partSectors, true);
+  u8[510] = 0x55; u8[511] = 0xaa;
+  // ---- FAT32 ブートセクタ ----
+  const P = partStart * SECTOR;
+  const spc = 8; // 4KiB クラスタ
+  const reserved = 32;
+  const numFats = 2;
+  let fatSz = 0;
+  for (let i = 0; i < 4; i++) {
+    const dataSec = partSectors - reserved - numFats * fatSz;
+    const clusters = Math.floor(dataSec / spc);
+    fatSz = Math.ceil((clusters + 2) * 4 / SECTOR);
+  }
+  const dataSec = partSectors - reserved - numFats * fatSz;
+  const clusterCount = Math.floor(dataSec / spc);
+  u8[P] = 0xeb; u8[P + 1] = 0x58; u8[P + 2] = 0x90;
+  u8.set([0x4d, 0x53, 0x57, 0x49, 0x4e, 0x34, 0x2e, 0x31], P + 3); // "MSWIN4.1"
+  dv.setUint16(P + 11, SECTOR, true);
+  u8[P + 13] = spc;
+  dv.setUint16(P + 14, reserved, true);
+  u8[P + 16] = numFats;
+  dv.setUint16(P + 17, 0, true); // ルートエントリ数 (FAT32は0)
+  dv.setUint16(P + 19, 0, true); // 総セクタ16
+  u8[P + 21] = 0xf8; // メディア
+  dv.setUint16(P + 22, 0, true); // FATサイズ16
+  dv.setUint16(P + 24, 63, true); // トラックあたりセクタ
+  dv.setUint16(P + 26, 255, true); // ヘッド数
+  dv.setUint32(P + 28, partStart, true); // 隠しセクタ
+  dv.setUint32(P + 32, partSectors, true); // 総セクタ32
+  dv.setUint32(P + 36, fatSz, true); // FATサイズ32
+  dv.setUint16(P + 40, 0, true); // 拡張フラグ
+  dv.setUint16(P + 42, 0, true); // FSバージョン
+  dv.setUint32(P + 44, 2, true); // ルートクラスタ
+  dv.setUint16(P + 48, 1, true); // FSInfo セクタ
+  dv.setUint16(P + 50, 6, true); // バックアップブートセクタ
+  u8[P + 64] = 0x80; // ドライブ番号
+  u8[P + 66] = 0x29; // 拡張ブート署名
+  dv.setUint32(P + 67, 0x4b495455, true); // ボリュームID "KITU"
+  u8.set([0x4b, 0x49, 0x54, 0x53, 0x55, 0x4e, 0x45, 0x20, 0x20, 0x20, 0x20], P + 71); // ラベル "KITSUNE    "
+  u8.set([0x46, 0x41, 0x54, 0x33, 0x32, 0x20, 0x20, 0x20], P + 82); // "FAT32   "
+  u8[P + 510] = 0x55; u8[P + 511] = 0xaa;
+  // FSInfo
+  const F = P + SECTOR;
+  dv.setUint32(F, 0x41615252, true);
+  dv.setUint32(F + 484, 0x61417272, true);
+  dv.setUint32(F + 488, clusterCount - 1, true); // 空きクラスタ数（ルート分を除く）
+  dv.setUint32(F + 492, 3, true); // 次の空きクラスタ
+  dv.setUint32(F + 508, 0xaa550000, true);
+  // バックアップ（ブートセクタをセクタ6、FSInfoをセクタ7へ）
+  u8.copyWithin(P + 6 * SECTOR, P, P + SECTOR);
+  u8.copyWithin(P + 7 * SECTOR, F, F + SECTOR);
+  // FAT（2本とも先頭エントリだけ書く）
+  for (let f = 0; f < numFats; f++) {
+    const fatOff = P + (reserved + f * fatSz) * SECTOR;
+    dv.setUint32(fatOff, 0x0ffffff8, true);
+    dv.setUint32(fatOff + 4, 0xffffffff, true);
+    dv.setUint32(fatOff + 8, 0x0fffffff, true); // クラスタ2 = ルート、終端
+  }
+  // ルートディレクトリにボリュームラベル
+  const rootOff = P + (reserved + numFats * fatSz) * SECTOR;
+  u8.set([0x4b, 0x49, 0x54, 0x53, 0x55, 0x4e, 0x45, 0x20, 0x20, 0x20, 0x20], rootOff); // "KITSUNE    "
+  u8[rootOff + 11] = 0x08; // ボリュームラベル属性
+  return buf;
+}
+
 const farm = document.getElementById("farm");
 const template = document.getElementById("box-template");
 let counter = 0;
@@ -236,12 +323,22 @@ async function bootPreset(box) {
           setStatus(box, err.message, false);
           return;
         }
+      } else if (sel === "fat32") {
+        // フォーマット済みHDD: 作り直しは初回だけ（電源入れ直しで中身を保つ）
+        if (!box.hddBuffer || box.hddKind !== "fat32") {
+          box.hddBuffer = makeFat32Hdd(2048);
+          box.hddKind = "fat32";
+        }
+        cfg.hda = { buffer: box.hddBuffer };
+        box.el.querySelector('[data-act="hdd-save"]').disabled = false;
+        hasHdd = true;
       } else if (parseInt(sel, 10) > 0) {
         const hddMB = parseInt(sel, 10);
         if (hddMB > 0) {
         // 既に同じサイズのHDDがあれば中身ごと使い回す（電源入れ直しで初期化しない）
-        if (!box.hddBuffer || box.hddBuffer.byteLength !== hddMB * 1024 * 1024) {
+        if (!box.hddBuffer || box.hddBuffer.byteLength !== hddMB * 1024 * 1024 || box.hddKind !== "raw") {
           box.hddBuffer = new ArrayBuffer(hddMB * 1024 * 1024);
+          box.hddKind = "raw";
         }
           cfg.hda = { buffer: box.hddBuffer };
           box.el.querySelector('[data-act="hdd-save"]').disabled = false;
