@@ -7,7 +7,7 @@
 <meta name="description" content="きつね仮想は、ブラウザの中で本物のOSを起動する仮想マシンサイトです。Linux / FreeDOS / KolibriOS がインストール不要で動きます。Windows 98/2000/XP・ReactOS・Android-x86 は自分のイメージファイルから起動できます。">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="favicon.png">
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="stylesheet" href="style.css?v=16">
 <script src="lib/libv86.js"></script>
 </head>
 <body>
@@ -60,6 +60,8 @@
       </select>
     </label>
     <button id="add-box" class="primary">＋ マシンを追加して起動</button>
+    <button id="setup-preset" type="button">🚀 セットアップ高速化（おすすめ設定にする）</button>
+    <p class="note" id="setup-preset-note" hidden>おすすめ設定にしました：CPU通常（高速）・ネットワークOFF・メモリ256MB・FAT32済み高速SSD 2GB。OSのイメージを選んで「マシンを追加して起動」を押してください。</p>
   </div>
   <div class="row" id="custom-row" hidden>
     <label>起動フロッピー（.img）
@@ -140,6 +142,6 @@
   <p>🦊 きつね仮想</p>
 </footer>
 
-<script src="app.js?v=15"></script>
+<script src="app.js?v=16"></script>
 </body>
 </html>

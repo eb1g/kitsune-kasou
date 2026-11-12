@@ -698,6 +698,22 @@ if (addBtn) {
     bootPreset(box);
   });
 }
+const setupPresetBtn = $id("setup-preset");
+if (setupPresetBtn) {
+  setupPresetBtn.addEventListener("click", () => {
+    // セットアップが一番速く・止まりにくく進む組み合わせに一括設定する
+    if (cpuModeSel) cpuModeSel.value = "jit";
+    if (netChk) netChk.checked = false;
+    if (memorySel) memorySel.value = "256";
+    const hddSel = $id("custom-hdd");
+    if (hddSel) hddSel.value = "2048";
+    const note = $id("setup-preset-note");
+    if (note) note.hidden = false;
+    // 変更を保存させる（既存の change リスナー経由）
+    const src = cpuModeSel || netChk;
+    if (src) src.dispatchEvent(new Event("change"));
+  });
+}
 syncLauncher();
 
 // 最初に Linux を1台、起動した状態で表示する
