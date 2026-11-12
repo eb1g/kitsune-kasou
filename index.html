@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>きつね仮想 | ブラウザで動く仮想マシン</title>
+<meta name="description" content="きつね仮想は、ブラウザの中で本物のOSを起動する仮想マシンサイトです。Linux / FreeDOS / KolibriOS がインストール不要で動きます。Windows 98/2000/XP・ReactOS・Android-x86 は自分のイメージファイルから起動できます。">
+<link rel="stylesheet" href="style.css">
+<script src="lib/libv86.js"></script>
+</head>
+<body>
+<header>
+  <h1>🦊 きつね仮想</h1>
+  <p class="tagline">ブラウザで動く仮想マシン — インストール不要、タブの中で本物のOSが起動します</p>
+</header>
+
+<section class="panel" id="launcher">
+  <h2>新しいマシンを追加</h2>
+  <div class="row">
+    <label>OS
+      <select id="preset">
+        <option value="linux">Linux（Buildroot / コンソール）</option>
+        <option value="linux3">Linux 3（グラフィカル）</option>
+        <option value="kolibri">KolibriOS（軽量GUI）</option>
+        <option value="freedos">FreeDOS</option>
+        <option value="custom">自分のイメージファイル（Windows / ReactOS / Android-x86 など）</option>
+      </select>
+    </label>
+    <label>RAM
+      <select id="memory">
+        <option value="32">32 MB</option>
+        <option value="64" selected>64 MB</option>
+        <option value="128">128 MB</option>
+        <option value="256">256 MB</option>
+      </select>
+    </label>
+    <button id="add-box" class="primary">＋ マシンを追加して起動</button>
+  </div>
+  <div class="row" id="custom-row" hidden>
+    <label>イメージファイル（.iso / .img）
+      <input type="file" id="custom-file" accept=".iso,.img,.bin,.dsk">
+    </label>
+    <label>接続方法
+      <select id="custom-type">
+        <option value="cdrom">CD-ROM（ISO向け）</option>
+        <option value="hda">ハードディスク（IMG向け）</option>
+        <option value="fda">フロッピー</option>
+      </select>
+    </label>
+  </div>
+  <p class="note">
+    対応の目安：Linux（32bit）・FreeDOS・KolibriOS は同梱イメージですぐ起動します。
+    Windows は 98 / 2000 / XP のような古い32bit版が、自分の正規イメージを使う場合のみ対象です（Windows 10 / 11 はブラウザエミュレーションでは動きません）。
+    ReactOS は Windows 互換の無料OSで、ISOを読み込めます。
+    Android は v86 エンジンでは公式に「まともに動作しない」とされているため実験扱いです（Android-x86 の古いISOでシェルが出る程度の場合があります）。
+    イメージの配布はしません。権利のあるファイルだけを使ってください。
+  </p>
+</section>
+
+<main id="farm" aria-live="polite"></main>
+
+<template id="box-template">
+  <article class="box">
+    <div class="box-head">
+      <h3 class="box-title">マシン</h3>
+      <span class="status">停止中</span>
+    </div>
+    <div class="screen_container">
+      <div style="white-space: pre; font: 14px monospace; line-height: 14px"></div>
+      <canvas style="display: none"></canvas>
+    </div>
+    <div class="box-controls">
+      <button data-act="power" class="primary">⏻ 電源ON</button>
+      <button data-act="restart">↻ 再起動</button>
+      <button data-act="cad">Ctrl+Alt+Del</button>
+      <button data-act="save">💾 状態を保存</button>
+      <label class="restore-label">📂 状態を開く<input type="file" data-act="restore" accept=".bin,.state" hidden></label>
+      <button data-act="full">⛶ 全画面</button>
+      <button data-act="close" class="danger">✕ 閉じる</button>
+    </div>
+  </article>
+</template>
+
+<footer>
+  <p>きつね仮想 — エンジン: <a href="https://github.com/copy/v86">v86</a>（x86 エミュレーター / WebAssembly）。計算はすべてあなたのブラウザの中で行われ、データはサーバーに送信されません。</p>
+  <p>元になったサイト: <a href="https://www.farmsub.com/">BoxLinuxFarm（FarmSub）</a> と同じ v86 系の仕組みを使っています。</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
