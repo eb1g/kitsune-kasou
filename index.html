@@ -7,7 +7,7 @@
 <meta name="description" content="きつね仮想は、ブラウザの中で本物のOSを起動する仮想マシンサイトです。Linux / FreeDOS / KolibriOS がインストール不要で動きます。Windows 98/2000/XP・ReactOS・Android-x86 は自分のイメージファイルから起動できます。">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="favicon.png">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 <script src="lib/libv86.js"></script>
 </head>
 <body>
@@ -40,6 +40,9 @@
         <option value="1024">1 GB</option>
       </select>
     </label>
+    <label>ネットワーク
+      <span><input type="checkbox" id="network-on" checked> 仮想ネットワークに接続する</span>
+    </label>
     <label>マシン名（任意）
       <input type="text" id="machine-name" placeholder="例：テスト用Windows" maxlength="40">
     </label>
@@ -53,29 +56,21 @@
     <button id="add-box" class="primary">＋ マシンを追加して起動</button>
   </div>
   <div class="row" id="custom-row" hidden>
-    <label>イメージファイル（.iso / .img）
-      <input type="file" id="custom-file" accept=".iso,.img,.bin,.dsk">
+    <label>起動フロッピー（.img）
+      <input type="file" id="custom-fda-file" accept=".img,.dsk,.ima,.bin">
     </label>
-    <label>接続方法
-      <select id="custom-type">
-        <option value="cdrom">CD-ROM（ISO向け）</option>
-        <option value="hda">ハードディスク（IMG向け）</option>
-        <option value="fda">フロッピー</option>
-      </select>
+    <label>CD / DVD（.iso）
+      <input type="file" id="custom-cd-file" accept=".iso,.img,.bin">
+    </label>
+    <label>ハードディスク（.img）
+      <input type="file" id="custom-hd-file" accept=".img,.vhd,.bin">
     </label>
     <label id="hdd-raw-wrap">仮想ハードディスク
       <select id="custom-hdd">
         <option value="0">なし</option>
         <option value="512">空のHDD 512 MB を追加</option>
-        <option value="1024" selected>空のHDD 1 GB を追加</option>
-        <option value="2048">空のHDD 2 GB を追加</option>
-      </select>
-    </label>
-    <label id="hdd-qcow-wrap" hidden>仮想ハードディスク
-      <select id="custom-hdd-qcow2">
-        <option value="0">なし</option>
-        <option value="100">空のHDD 100 GB を追加（スパース）</option>
-        <option value="500" selected>空のHDD 500 GB を追加（スパース）</option>
+        <option value="1024">空のHDD 1 GB を追加</option>
+        <option value="2048" selected>空のHDD 2 GB を追加</option>
       </select>
     </label>
   </div>
@@ -136,6 +131,6 @@
   <p>🦊 きつね仮想</p>
 </footer>
 
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

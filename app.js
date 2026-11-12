@@ -16,12 +16,6 @@ const PRESETS = {
               cmdline: "console=tty0 console=ttyS0 panic=-1", memory: 512 },
 };
 
-// 64bitモード用スパースHDD (qcow2)。ファイル自体は小さいが、ゲストからは大容量に見える。
-const QCOW2_DISKS = {
-  "100": { url: "disks/blank-100gb.qcow2", size: 262144, label: "100 GB" },
-  "500": { url: "disks/blank-500gb.qcow2", size: 262144, label: "500 GB" },
-};
-
 const farm = document.getElementById("farm");
 const template = document.getElementById("box-template");
 let counter = 0;
@@ -70,6 +64,7 @@ async function startEmulator(box, extraConfig) {
     vga_bios: { url: "bios/vgabios.bin" },
     autostart: true,
     disable_speaker: true,
+    fastboot: true,
   }, is64 ? {
     wasm_path: "lib64/v86.wasm",
     graphics_adapter: "bochs_vga",
@@ -84,6 +79,13 @@ async function startEmulator(box, extraConfig) {
     wasm_path: "lib/v86.wasm",
     vga_memory_size: 2 * 1024 * 1024,
   }, extraConfig);
+  // 仮想ネットワーク（実際につながる公開リレー経由）。ゲスト側にNICドライバが
+  // 要る: 64bitは e1000（多くのOSにドライバあり）、32bitは ne2k (RTL8029)。
+  if (box.network !== false && !cfg.net_device) {
+    cfg.net_device = is64
+      ? { type: "e1000", relay_url: "wss://relay.widgetry.org/" }
+      : { type: "ne2k", relay_url: "wss://relay.widgetry.org/" };
+  }
   setStatus(box, "起動中…", true);
   try {
     box.emu = new V86Ctor(cfg);
@@ -120,51 +122,37 @@ function lockMouse(box) {
   }
 }
 
-async function qcow2Config(disk) {
-  // qcow2 の size にはファイル自体のバイト数を渡す（ゲストには仮想サイズが見える）
-  let size = disk.size || 0;
-  if (!size) {
-    try {
-      const res = await fetch(disk.url, { method: "HEAD" });
-      size = parseInt(res.headers.get("Content-Length") || "0", 10);
-    } catch (e) { /* 下でエラーにする */ }
-  }
-  if (!size) throw new Error("ディスクファイルのサイズを取得できませんでした");
-  return { url: disk.url, async: true, size, format: "qcow2" };
-}
-
 async function bootPreset(box) {
   if (box.presetKey === "custom" || box.presetKey === "custom64") {
-    const file = document.getElementById("custom-file").files[0];
-    if (!file) { setStatus(box, "イメージファイルを選んでください", false); return; }
-    const type = document.getElementById("custom-type").value;
-    const buffer = await file.arrayBuffer();
-    const cfg = {};
-    cfg[type] = { buffer };
-    if (type === "hda") {
-      box.hddBuffer = buffer;
-      box.el.querySelector('[data-act="hdd-save"]').disabled = false;
+    // フロッピー / CD / ハードディスクを同時接続できる（NT 3.51や95のように
+    // 起動フロッピー＋CD＋HDDが必要なWindowsのセットアップにも対応するため）
+    const fileOf = (id) => {
+      const el = document.getElementById(id);
+      return el && el.files && el.files[0] ? el.files[0] : null;
+    };
+    const fdaFile = fileOf("custom-fda-file");
+    const cdFile = fileOf("custom-cd-file");
+    const hdFile = fileOf("custom-hd-file");
+    if (!fdaFile && !cdFile && !hdFile) {
+      setStatus(box, "イメージファイルを選んでください", false);
+      return;
     }
-    let hasHdd = type === "hda";
-    if (box.presetKey === "custom64") {
-      // 64bitモード: qcow2 スパースHDD（CD-ROM接続のとき）
-      const qEl = document.getElementById("custom-hdd-qcow2");
-      const q = qEl ? qEl.value : "0";
-      if (type !== "hda" && q !== "0" && QCOW2_DISKS[q]) {
-        try {
-          cfg.hda = await qcow2Config(QCOW2_DISKS[q]);
-          box.qcow2 = true;
-          hasHdd = true;
-        } catch (err) {
-          setStatus(box, err.message, false);
-          return;
-        }
-      }
-    } else {
-      // 標準モード: 空の仮想ハードディスク（raw）を追加
+    const cfg = {};
+    if (fdaFile) cfg.fda = { buffer: await fdaFile.arrayBuffer() };
+    if (cdFile) cfg.cdrom = { buffer: await cdFile.arrayBuffer() };
+    let hasHdd = false;
+    if (hdFile) {
+      box.hddBuffer = await hdFile.arrayBuffer();
+      cfg.hda = { buffer: box.hddBuffer };
+      box.el.querySelector('[data-act="hdd-save"]').disabled = false;
+      hasHdd = true;
+    }
+    if (!hdFile) {
+      // 空の仮想ハードディスク（raw）を追加。32bit / 64bit 共通で最大2GB。
+      // 以前あった500GB（qcow2）はユーザーの指示で廃止し、こちらに統一した。
       const hddEl = document.getElementById("custom-hdd");
       const hddMB = hddEl ? parseInt(hddEl.value, 10) : 0;
-      if (type !== "hda" && hddMB > 0) {
+      if (hddMB > 0) {
         // 既に同じサイズのHDDがあれば中身ごと使い回す（電源入れ直しで初期化しない）
         if (!box.hddBuffer || box.hddBuffer.byteLength !== hddMB * 1024 * 1024) {
           box.hddBuffer = new ArrayBuffer(hddMB * 1024 * 1024);
@@ -174,10 +162,16 @@ async function bootPreset(box) {
         hasHdd = true;
       }
     }
-    // 起動順序: HDDがある場合はHDD優先にする。空のHDDは起動できずCD/フロッピーに
-    // フォールスルーするので、インストール開始時はCDから起動し、セットアップが
-    // HDDを起動可能にした後の再起動ではHDDから続きが起動する（最初に戻らない）。
-    cfg.boot_order = hasHdd ? 0x132 : type === "fda" ? 0x231 : 0x213;
+    // 起動順序:
+    // - 起動フロッピー＋空HDD（インストール中）: フロッピー優先 (0x321)
+    // - HDDあり: HDD優先 (0x132)。空HDDは起動できずCD/FDへフォールスルーするので
+    //   インストール開始時はCD等から起動し、HDDが起動可能になった後の再起動では
+    //   HDDから続きが起動する（セットアップが最初に戻らない）
+    // - フロッピーだけ: 0x231 / CDだけ: 0x213
+    if (fdaFile && hasHdd && !hdFile) cfg.boot_order = 0x321;
+    else if (hasHdd) cfg.boot_order = 0x132;
+    else if (fdaFile) cfg.boot_order = 0x231;
+    else cfg.boot_order = 0x213;
     box.customCfg = cfg;
     startEmulator(box, cfg);
     return;
@@ -345,7 +339,7 @@ function renderTitle(box) {
   box.el.querySelector(".box-title").textContent = `🦊 ${name} #${box.num}（RAM ${box.memoryMB}MB${coreNote}）`;
 }
 
-function createBox(presetKey, memoryMB, cpuCores, customName) {
+function createBox(presetKey, memoryMB, cpuCores, customName, network) {
   counter += 1;
   const el = template.content.firstElementChild.cloneNode(true);
   const isCustom = presetKey === "custom" || presetKey === "custom64";
@@ -357,7 +351,7 @@ function createBox(presetKey, memoryMB, cpuCores, customName) {
 
   const box = {
     el, emu: null, presetKey, memoryMB, cpuCores: cpuCores || 1, num: counter,
-    defaultName, customName: customName || "", is64Box,
+    defaultName, customName: customName || "", is64Box, network: network !== false,
     engine: presetKey === "custom64" || (PRESETS[presetKey] && PRESETS[presetKey].engine === "v64") ? "v64" : "v86",
     powerBtn: el.querySelector('[data-act="power"]'),
   };
@@ -470,14 +464,14 @@ const presetSel = $id("preset");
 const memorySel = $id("memory");
 const cpuSel = $id("cpu-cores");
 const nameInput = $id("machine-name");
+const netChk = $id("network-on");
 
 function syncLauncher() {
   if (!presetSel) return;
   const v = presetSel.value;
   const custom = v === "custom" || v === "custom64";
   const row = $id("custom-row"); if (row) row.hidden = !custom;
-  const raw = $id("hdd-raw-wrap"); if (raw) raw.hidden = v !== "custom";
-  const qc = $id("hdd-qcow-wrap"); if (qc) qc.hidden = v !== "custom64";
+  const raw = $id("hdd-raw-wrap"); if (raw) raw.hidden = !custom;
   if (v === "alpine64" && memorySel) memorySel.value = "512";
 }
 
@@ -490,6 +484,7 @@ if (presetSel) {
       if (saved.preset) presetSel.value = saved.preset;
       if (saved.memory && memorySel) memorySel.value = saved.memory;
       if (saved.cpu && cpuSel) cpuSel.value = saved.cpu;
+      if (typeof saved.net === "boolean" && netChk) netChk.checked = saved.net;
     }
   } catch (e) { /* 保存が無ければ既定値 */ }
   const saveLauncher = () => {
@@ -498,12 +493,14 @@ if (presetSel) {
         preset: presetSel.value,
         memory: memorySel ? memorySel.value : "",
         cpu: cpuSel ? cpuSel.value : "",
+        net: netChk ? netChk.checked : true,
       }));
     } catch (e) { /* 保存できない環境では何もしない */ }
   };
   presetSel.addEventListener("change", saveLauncher);
   if (memorySel) memorySel.addEventListener("change", saveLauncher);
   if (cpuSel) cpuSel.addEventListener("change", saveLauncher);
+  if (netChk) netChk.addEventListener("change", saveLauncher);
 }
 
 const addBtn = $id("add-box");
@@ -513,7 +510,8 @@ if (addBtn) {
     const memoryMB = memorySel ? parseInt(memorySel.value, 10) || 64 : 64;
     const cpuCores = cpuSel ? parseInt(cpuSel.value, 10) || 1 : 1;
     const name = nameInput ? nameInput.value.trim() : "";
-    const box = createBox(presetSel ? presetSel.value : "linux", memoryMB, cpuCores, name);
+    const network = netChk ? netChk.checked : true;
+    const box = createBox(presetSel ? presetSel.value : "linux", memoryMB, cpuCores, name, network);
     bootPreset(box);
   });
 }
