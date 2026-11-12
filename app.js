@@ -260,6 +260,52 @@ function buildKeyboard(box) {
   }
 }
 
+// ---------- localStorage への状態保存 ----------
+// 状態データは gzip 圧縮して base64 で localStorage に保存する。
+// localStorage の上限（一般に 5〜10MB程度）を超えると保存は失敗する。
+function lsKey(box) {
+  return `kitsune-vm-state-${box.presetKey}-${box.memoryMB}`;
+}
+
+function bufferToBase64(buf) {
+  const bytes = new Uint8Array(buf);
+  let bin = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(bin);
+}
+
+function base64ToBuffer(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
+async function packState(state) {
+  if (typeof CompressionStream === "function") {
+    try {
+      const gz = await new Response(
+        new Blob([state]).stream().pipeThrough(new CompressionStream("gzip"))
+      ).arrayBuffer();
+      return { gz: true, b64: bufferToBase64(gz) };
+    } catch (e) { /* 圧縮できない環境ではそのまま保存 */ }
+  }
+  return { gz: false, b64: bufferToBase64(state) };
+}
+
+async function unpackState(payload) {
+  const raw = base64ToBuffer(payload.data);
+  if (payload.gz && typeof DecompressionStream === "function") {
+    return await new Response(
+      new Blob([raw]).stream().pipeThrough(new DecompressionStream("gzip"))
+    ).arrayBuffer();
+  }
+  return raw;
+}
+
 // ---------- マシンの箱 ----------
 
 function createBox(presetKey, memoryMB) {
@@ -282,7 +328,6 @@ function createBox(presetKey, memoryMB) {
 
   el.querySelector(".screen_container").addEventListener("mousedown", () => { focusBox(box); lockMouse(box); });
   box.powerBtn.addEventListener("click", () => { box.emu ? stopEmulator(box) : bootPreset(box); });
-  el.querySelector('[data-act="mouse"]').addEventListener("click", () => lockMouse(box));
   el.querySelector('[data-act="kbd"]').addEventListener("click", () => {
     const osk = el.querySelector(".osk");
     osk.hidden = !osk.hidden;
@@ -308,6 +353,38 @@ function createBox(presetKey, memoryMB) {
     a.download = `kitsune-vm-${box.num}.state.bin`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  });
+  el.querySelector('[data-act="ls-save"]').addEventListener("click", async () => {
+    if (!box.emu || !box.emu.save_state) { setStatus(box, "起動してから保存してください", false); return; }
+    setStatus(box, "ブラウザに保存中…", true);
+    try {
+      const state = await box.emu.save_state();
+      const packed = await packState(state);
+      const payload = JSON.stringify({
+        v: 1, gz: packed.gz, preset: box.presetKey, memory: box.memoryMB,
+        savedAt: new Date().toISOString(), data: packed.b64,
+      });
+      localStorage.setItem(lsKey(box), payload);
+      setStatus(box, `ブラウザに保存しました（${(payload.length / 1024 / 1024).toFixed(1)} MB）`, true);
+    } catch (err) {
+      setStatus(box, "保存失敗: ブラウザの保存容量の上限を超えた可能性があります", false);
+    }
+  });
+  el.querySelector('[data-act="ls-restore"]').addEventListener("click", async () => {
+    let payload = null;
+    try { payload = JSON.parse(localStorage.getItem(lsKey(box)) || "null"); } catch (e) { /* 壊れたデータは無視 */ }
+    if (!payload || !payload.data) { setStatus(box, "このマシンの保存データがブラウザにありません", false); return; }
+    setStatus(box, "ブラウザから復元中…", true);
+    try {
+      const buf = await unpackState(payload);
+      if (!box.emu) { await bootPreset(box); }
+      if (box.emu && box.emu.restore_state) {
+        await box.emu.restore_state(buf);
+        setStatus(box, "動作中（ブラウザ保存から復元）", true);
+      }
+    } catch (err) {
+      setStatus(box, "復元失敗: " + err.message, false);
+    }
   });
   el.querySelector('[data-act="restore"]').addEventListener("change", async (ev) => {
     const f = ev.target.files[0];
@@ -346,6 +423,22 @@ document.getElementById("add-box").addEventListener("click", () => {
   const box = createBox(presetSel.value, memoryMB);
   bootPreset(box);
 });
+// ランチャーの選択（OS・RAM）を localStorage に覚えておく
+const memorySel = document.getElementById("memory");
+try {
+  const saved = JSON.parse(localStorage.getItem("kitsune-launcher") || "null");
+  if (saved) {
+    if (saved.preset) presetSel.value = saved.preset;
+    if (saved.memory) memorySel.value = saved.memory;
+  }
+} catch (e) { /* 保存が無ければ既定値 */ }
+const saveLauncher = () => {
+  try {
+    localStorage.setItem("kitsune-launcher", JSON.stringify({ preset: presetSel.value, memory: memorySel.value }));
+  } catch (e) { /* 保存できない環境では何もしない */ }
+};
+presetSel.addEventListener("change", saveLauncher);
+memorySel.addEventListener("change", saveLauncher);
 syncLauncher();
 
 // 最初に Linux を1台、起動した状態で表示する

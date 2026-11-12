@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>きつね仮想 | ブラウザで動く仮想マシン</title>
 <meta name="description" content="きつね仮想は、ブラウザの中で本物のOSを起動する仮想マシンサイトです。Linux / FreeDOS / KolibriOS がインストール不要で動きます。Windows 98/2000/XP・ReactOS・Android-x86 は自分のイメージファイルから起動できます。">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="favicon.png">
 <link rel="stylesheet" href="style.css">
 <script src="lib/libv86.js"></script>
 </head>
@@ -73,14 +75,6 @@
     空のHDDは未使用領域なので、セットアップ中にパーティション作成やフォーマットを求められたら、そのまま進めてください。
     インストール後はマシンの「💽 HDDを保存」からディスクイメージをダウンロードでき、次回はそのファイルを「ハードディスク（IMG向け）」で読み込むと続きから使えます。
   </p>
-  <p class="note">
-    対応の目安：Linux（32bit）・FreeDOS・KolibriOS は同梱イメージですぐ起動します。
-    Windows は 98 / 2000 / XP のような古い32bit版が、自分の正規イメージを使う場合のみ対象です。
-    ReactOS は Windows 互換の無料OSで、ISOを読み込めます。
-    64bitのOSは「64bit実験モード」（Alpine Linux 64bit同梱／自分の64bitイメージ読み込み）で起動できます。ただし実験モードは起動が重く、Windows 10 / 11 のような大きなOSは現実的ではありません（64bit Linux などが対象です）。
-    Android は公式に「まともに動作しない」とされているため実験扱いです（Android-x86 の古いISOでシェルが出る程度の場合があります）。
-    イメージの配布はしません。権利のあるファイルだけを使ってください。
-  </p>
 </section>
 
 <main id="farm" aria-live="polite"></main>
@@ -98,17 +92,18 @@
     <div class="box-controls">
       <button data-act="power" class="primary">⏻ 電源ON</button>
       <button data-act="restart">↻ 再起動</button>
-      <button data-act="mouse">🖱 マウスを合わせる</button>
       <button data-act="kbd">⌨ キーボード</button>
       <button data-act="cad">Ctrl+Alt+Del</button>
       <button data-act="save">💾 状態を保存</button>
       <label class="restore-label">📂 状態を開く<input type="file" data-act="restore" accept=".bin,.state" hidden></label>
+      <button data-act="ls-save">🗄 ブラウザに保存</button>
+      <button data-act="ls-restore">🗄 ブラウザから復元</button>
       <button data-act="hdd-save" disabled>💽 HDDを保存</button>
       <button data-act="full">⛶ 全画面</button>
       <button data-act="close" class="danger">✕ 閉じる</button>
     </div>
     <div class="osk" hidden></div>
-    <p class="hint">マウスカーソルがずれる時は、画面をクリックするか「🖱 マウスを合わせる」を押してください（マウスが画面にロックされます。解除は Esc キー）。スマホやタブレットでは「⌨ キーボード」の画面キーボードが使えます。</p>
+    <p class="hint">画面をクリックするとマウスが画面にロックされ、仮想マシン内のカーソルと動きが合います（解除は Esc キー）。スマホやタブレットでは「⌨ キーボード」の画面キーボードが使えます。「🗄 ブラウザに保存」は状態をこのブラウザの localStorage に保存します（容量の上限があり、大きな状態は保存できない場合があります）。</p>
   </article>
 </template>
 
@@ -117,10 +112,6 @@
   <details>
     <summary>きつね仮想とは何ですか？</summary>
     <p>きつね仮想 — エンジン: v86（x86 エミュレーター / WebAssembly）。計算はすべてあなたのブラウザの中で行われ、データはサーバーに送信されません。インストールも登録も不要で、開いたタブの中で本物のOSが起動します。</p>
-  </details>
-  <details>
-    <summary>どのOSが動きますか？</summary>
-    <p>同梱の Linux / Linux 3 / KolibriOS / FreeDOS はそのまま起動します。Windows 98 / 2000 / XP や ReactOS は、自分のイメージファイル（.iso / .img）を読み込めば起動できます。64bitのOSは「64bit実験モード」で起動できます（Alpine Linux 64bitが同梱されています）。ただし実験モードは動作が重く、Windows 10 / 11 のような大きな64bit OSは現実的ではありません。Android は実験扱いで、まともに動作しない場合があります。</p>
   </details>
   <details>
     <summary>64bit実験モードとは何ですか？</summary>
@@ -133,14 +124,6 @@
   <details>
     <summary>画面キーボードはありますか？</summary>
     <p>各マシンの「⌨ キーボード」ボタンを押すと、Windows風の画面キーボードが開きます。スマホやタブレットでの入力に便利です。Shift / Ctrl / Alt / ⊞ キーは押すと保持され、次のキーと組み合わせて送られます（1回入力すると解除されます）。</p>
-  </details>
-  <details>
-    <summary>Windowsのセットアップで「ハードディスクがない」と言われます</summary>
-    <p>仮想ハードディスクが接続されていないためです。自分のイメージから起動するときに「仮想ハードディスク」で「空のHDD」を選んでから起動し直してください。空のHDDは未使用領域なので、セットアップ中にパーティションの作成やフォーマットを求められたら、そのまま進めてください。インストール後は「💽 HDDを保存」でディスクをファイルに保存でき、次回はそのファイルをハードディスクとして読み込めます。</p>
-  </details>
-  <details>
-    <summary>マウスカーソルが自分のカーソルと合いません</summary>
-    <p>画面をクリックするか、マシンの「🖱 マウスを合わせる」ボタンを押してください。マウスが画面の中にロックされ、仮想マシン内のカーソルと動きが合うようになります。ロックの解除は Esc キーです。</p>
   </details>
   <details>
     <summary>データはサーバーに送られますか？</summary>
