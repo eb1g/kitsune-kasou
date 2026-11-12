@@ -19,8 +19,8 @@ const PRESETS = {
 // 大容量スパースHDD (qcow2)。ファイル自体は小さいが、ゲストからは大容量に見える。
 // 64bitエンジン(v64)専用（32bitエンジンはqcow2を正しく読めないため）。
 const QCOW2_DISKS = {
-  "100": { url: "disks/blank-100gb.qcow2", size: 262144, label: "100 GB" },
-  "500": { url: "disks/blank-500gb.qcow2", size: 262144, label: "500 GB" },
+  "100": { url: "disks/blank-100gb.qcow2", size: 589824, label: "100 GB" },
+  "500": { url: "disks/blank-500gb.qcow2", size: 589824, label: "500 GB" },
 };
 
 // FAT32 でフォーマット済みの空HDDイメージをその場で作る。
@@ -306,7 +306,7 @@ async function bootPreset(box) {
     }
     if (!hdFile) {
       // 空の仮想ハードディスクを追加する。選択肢は1つのセレクトに統一:
-      // 512MB〜2GB は raw（両モード共通）、100GB / 500GB は qcow2 スパース
+      // 512MB〜2GB は FAT32フォーマット済み（両モード共通）、100GB / 500GB は qcow2 スパース
       // （64bitモード専用。32bitエンジンはqcow2を正しく読めないため）。
       const hddEl = document.getElementById("custom-hdd");
       const sel = hddEl ? hddEl.value : "0";
@@ -323,27 +323,17 @@ async function bootPreset(box) {
           setStatus(box, err.message, false);
           return;
         }
-      } else if (sel === "fat32") {
-        // フォーマット済みHDD: 作り直しは初回だけ（電源入れ直しで中身を保つ）
-        if (!box.hddBuffer || box.hddKind !== "fat32") {
-          box.hddBuffer = makeFat32Hdd(2048);
+      } else if (parseInt(sel, 10) > 0 || sel === "fat32") {
+        // 空SSDは全サイズともFAT32フォーマット済みで作る（セットアップ高速化）。
+        // 作り直しは初回だけ（電源入れ直しで中身を保つ）
+        const hddMB = sel === "fat32" ? 2048 : parseInt(sel, 10);
+        if (!box.hddBuffer || box.hddBuffer.byteLength !== hddMB * 1024 * 1024 || box.hddKind !== "fat32") {
+          box.hddBuffer = makeFat32Hdd(hddMB);
           box.hddKind = "fat32";
         }
         cfg.hda = { buffer: box.hddBuffer };
         box.el.querySelector('[data-act="hdd-save"]').disabled = false;
         hasHdd = true;
-      } else if (parseInt(sel, 10) > 0) {
-        const hddMB = parseInt(sel, 10);
-        if (hddMB > 0) {
-        // 既に同じサイズのHDDがあれば中身ごと使い回す（電源入れ直しで初期化しない）
-        if (!box.hddBuffer || box.hddBuffer.byteLength !== hddMB * 1024 * 1024 || box.hddKind !== "raw") {
-          box.hddBuffer = new ArrayBuffer(hddMB * 1024 * 1024);
-          box.hddKind = "raw";
-        }
-          cfg.hda = { buffer: box.hddBuffer };
-          box.el.querySelector('[data-act="hdd-save"]').disabled = false;
-          hasHdd = true;
-        }
       }
     }
     // 起動順序:
