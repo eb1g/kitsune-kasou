@@ -144,7 +144,8 @@ async function bootPreset(box) {
     }
     if (box.presetKey === "custom64") {
       // 64bitモード: qcow2 スパースHDD（CD-ROM接続のとき）
-      const q = document.getElementById("custom-hdd-qcow2").value;
+      const qEl = document.getElementById("custom-hdd-qcow2");
+      const q = qEl ? qEl.value : "0";
       if (type !== "hda" && q !== "0" && QCOW2_DISKS[q]) {
         try {
           cfg.hda = await qcow2Config(QCOW2_DISKS[q]);
@@ -156,7 +157,8 @@ async function bootPreset(box) {
       }
     } else {
       // 標準モード: 空の仮想ハードディスク（raw）を追加
-      const hddMB = parseInt(document.getElementById("custom-hdd").value, 10);
+      const hddEl = document.getElementById("custom-hdd");
+      const hddMB = hddEl ? parseInt(hddEl.value, 10) : 0;
       if (type !== "hda" && hddMB > 0) {
         box.hddBuffer = new ArrayBuffer(hddMB * 1024 * 1024);
         cfg.hda = { buffer: box.hddBuffer };
@@ -324,24 +326,38 @@ async function unpackState(payload) {
 
 // ---------- マシンの箱 ----------
 
-function createBox(presetKey, memoryMB, cpuCores) {
+function renderTitle(box) {
+  const name = box.customName || box.defaultName;
+  const coreNote = box.is64Box && box.cpuCores > 1 ? `・CPU ${box.cpuCores}コア` : "";
+  box.el.querySelector(".box-title").textContent = `🦊 ${name} #${box.num}（RAM ${box.memoryMB}MB${coreNote}）`;
+}
+
+function createBox(presetKey, memoryMB, cpuCores, customName) {
   counter += 1;
   const el = template.content.firstElementChild.cloneNode(true);
   const isCustom = presetKey === "custom" || presetKey === "custom64";
   const is64Box = presetKey === "custom64" || (PRESETS[presetKey] && PRESETS[presetKey].engine === "v64");
-  const name = isCustom
+  const defaultName = isCustom
     ? (presetKey === "custom64" ? "カスタムイメージ（64bit）" : "カスタムイメージ（32bit）")
     : PRESETS[presetKey].label;
-  const coreNote = is64Box && cpuCores > 1 ? `・CPU ${cpuCores}コア` : "";
-  el.querySelector(".box-title").textContent = `🦊 ${name} #${counter}（RAM ${memoryMB}MB${coreNote}）`;
   farm.appendChild(el);
 
   const box = {
     el, emu: null, presetKey, memoryMB, cpuCores: cpuCores || 1, num: counter,
+    defaultName, customName: customName || "", is64Box,
     engine: presetKey === "custom64" || (PRESETS[presetKey] && PRESETS[presetKey].engine === "v64") ? "v64" : "v86",
     powerBtn: el.querySelector('[data-act="power"]'),
   };
   boxes.add(box);
+  renderTitle(box);
+  const titleEl = el.querySelector(".box-title");
+  titleEl.title = "ダブルクリックで名前を変更";
+  titleEl.addEventListener("dblclick", () => {
+    const next = prompt("マシンの名前", box.customName || box.defaultName);
+    if (next === null) return;
+    box.customName = next.trim();
+    renderTitle(box);
+  });
   buildKeyboard(box);
 
   el.querySelector(".screen_container").addEventListener("mousedown", () => { focusBox(box); lockMouse(box); });
@@ -424,46 +440,68 @@ function createBox(presetKey, memoryMB, cpuCores) {
 }
 
 // ---------- ランチャー ----------
+// 古いキャッシュの index.html と混ざっても起動処理が止まらないよう、
+// 要素の取得はすべて存在チェック付きで行う。
+const $id = (id) => document.getElementById(id);
+const presetSel = $id("preset");
+const memorySel = $id("memory");
+const cpuSel = $id("cpu-cores");
+const nameInput = $id("machine-name");
 
-const presetSel = document.getElementById("preset");
 function syncLauncher() {
+  if (!presetSel) return;
   const v = presetSel.value;
   const custom = v === "custom" || v === "custom64";
-  document.getElementById("custom-row").hidden = !custom;
-  document.getElementById("hdd-raw-wrap").hidden = v !== "custom";
-  document.getElementById("hdd-qcow-wrap").hidden = v !== "custom64";
-  if (v === "alpine64") document.getElementById("memory").value = "512";
+  const row = $id("custom-row"); if (row) row.hidden = !custom;
+  const raw = $id("hdd-raw-wrap"); if (raw) raw.hidden = v !== "custom";
+  const qc = $id("hdd-qcow-wrap"); if (qc) qc.hidden = v !== "custom64";
+  if (v === "alpine64" && memorySel) memorySel.value = "512";
 }
-presetSel.addEventListener("change", syncLauncher);
-const cpuSel = document.getElementById("cpu-cores");
-document.getElementById("add-box").addEventListener("click", () => {
-  const memoryMB = parseInt(document.getElementById("memory").value, 10);
-  const cpuCores = parseInt(cpuSel.value, 10) || 1;
-  const box = createBox(presetSel.value, memoryMB, cpuCores);
-  bootPreset(box);
-});
-// ランチャーの選択（OS・RAM・CPUコア）を localStorage に覚えておく
-const memorySel = document.getElementById("memory");
-try {
-  const saved = JSON.parse(localStorage.getItem("kitsune-launcher") || "null");
-  if (saved) {
-    if (saved.preset) presetSel.value = saved.preset;
-    if (saved.memory) memorySel.value = saved.memory;
-    if (saved.cpu) cpuSel.value = saved.cpu;
-  }
-} catch (e) { /* 保存が無ければ既定値 */ }
-const saveLauncher = () => {
+
+if (presetSel) {
+  presetSel.addEventListener("change", syncLauncher);
+  // ランチャーの選択（OS・RAM・CPUコア）を localStorage に覚えておく
   try {
-    localStorage.setItem("kitsune-launcher", JSON.stringify({ preset: presetSel.value, memory: memorySel.value, cpu: cpuSel.value }));
-  } catch (e) { /* 保存できない環境では何もしない */ }
-};
-presetSel.addEventListener("change", saveLauncher);
-memorySel.addEventListener("change", saveLauncher);
-cpuSel.addEventListener("change", saveLauncher);
+    const saved = JSON.parse(localStorage.getItem("kitsune-launcher") || "null");
+    if (saved) {
+      if (saved.preset) presetSel.value = saved.preset;
+      if (saved.memory && memorySel) memorySel.value = saved.memory;
+      if (saved.cpu && cpuSel) cpuSel.value = saved.cpu;
+    }
+  } catch (e) { /* 保存が無ければ既定値 */ }
+  const saveLauncher = () => {
+    try {
+      localStorage.setItem("kitsune-launcher", JSON.stringify({
+        preset: presetSel.value,
+        memory: memorySel ? memorySel.value : "",
+        cpu: cpuSel ? cpuSel.value : "",
+      }));
+    } catch (e) { /* 保存できない環境では何もしない */ }
+  };
+  presetSel.addEventListener("change", saveLauncher);
+  if (memorySel) memorySel.addEventListener("change", saveLauncher);
+  if (cpuSel) cpuSel.addEventListener("change", saveLauncher);
+}
+
+const addBtn = $id("add-box");
+if (addBtn) {
+  addBtn.addEventListener("click", () => {
+    // 押した瞬間に箱を作って起動する
+    const memoryMB = memorySel ? parseInt(memorySel.value, 10) || 64 : 64;
+    const cpuCores = cpuSel ? parseInt(cpuSel.value, 10) || 1 : 1;
+    const name = nameInput ? nameInput.value.trim() : "";
+    const box = createBox(presetSel ? presetSel.value : "linux", memoryMB, cpuCores, name);
+    bootPreset(box);
+  });
+}
 syncLauncher();
 
 // 最初に Linux を1台、起動した状態で表示する
 window.addEventListener("load", () => {
-  const box = createBox("linux", 64);
+  const box = createBox("linux", 64, 1, "");
   bootPreset(box);
+  // 64bitエンジンは裏で先読みしておく（追加した瞬間に起動できるように）
+  const preload = () => { loadV64().catch(() => {}); };
+  if (typeof requestIdleCallback === "function") requestIdleCallback(preload, { timeout: 3000 });
+  else setTimeout(preload, 1500);
 });
