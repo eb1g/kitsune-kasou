@@ -16,6 +16,13 @@ const PRESETS = {
               cmdline: "console=tty0 console=ttyS0 panic=-1", memory: 512 },
 };
 
+// 大容量スパースHDD (qcow2)。ファイル自体は小さいが、ゲストからは大容量に見える。
+// 64bitエンジン(v64)専用（32bitエンジンはqcow2を正しく読めないため）。
+const QCOW2_DISKS = {
+  "100": { url: "disks/blank-100gb.qcow2", size: 262144, label: "100 GB" },
+  "500": { url: "disks/blank-500gb.qcow2", size: 262144, label: "500 GB" },
+};
+
 const farm = document.getElementById("farm");
 const template = document.getElementById("box-template");
 let counter = 0;
@@ -122,6 +129,19 @@ function lockMouse(box) {
   }
 }
 
+async function qcow2Config(disk) {
+  // qcow2 の size にはファイル自体のバイト数を渡す（ゲストには仮想サイズが見える）
+  let size = disk.size || 0;
+  if (!size) {
+    try {
+      const res = await fetch(disk.url, { method: "HEAD" });
+      size = parseInt(res.headers.get("Content-Length") || "0", 10);
+    } catch (e) { /* 下でエラーにする */ }
+  }
+  if (!size) throw new Error("ディスクファイルのサイズを取得できませんでした");
+  return { url: disk.url, async: true, size, format: "qcow2" };
+}
+
 async function bootPreset(box) {
   if (box.presetKey === "custom" || box.presetKey === "custom64") {
     // フロッピー / CD / ハードディスクを同時接続できる（NT 3.51や95のように
@@ -148,18 +168,35 @@ async function bootPreset(box) {
       hasHdd = true;
     }
     if (!hdFile) {
-      // 空の仮想ハードディスク（raw）を追加。32bit / 64bit 共通で最大2GB。
-      // 以前あった500GB（qcow2）はユーザーの指示で廃止し、こちらに統一した。
+      // 空の仮想ハードディスクを追加する。選択肢は1つのセレクトに統一:
+      // 512MB〜2GB は raw（両モード共通）、100GB / 500GB は qcow2 スパース
+      // （64bitモード専用。32bitエンジンはqcow2を正しく読めないため）。
       const hddEl = document.getElementById("custom-hdd");
-      const hddMB = hddEl ? parseInt(hddEl.value, 10) : 0;
-      if (hddMB > 0) {
+      const sel = hddEl ? hddEl.value : "0";
+      if (sel === "100" || sel === "500") {
+        if (box.presetKey !== "custom64") {
+          setStatus(box, "100 GB / 500 GB は64bitモード専用です", false);
+          return;
+        }
+        try {
+          cfg.hda = await qcow2Config(QCOW2_DISKS[sel]);
+          box.qcow2 = true;
+          hasHdd = true;
+        } catch (err) {
+          setStatus(box, err.message, false);
+          return;
+        }
+      } else if (parseInt(sel, 10) > 0) {
+        const hddMB = parseInt(sel, 10);
+        if (hddMB > 0) {
         // 既に同じサイズのHDDがあれば中身ごと使い回す（電源入れ直しで初期化しない）
         if (!box.hddBuffer || box.hddBuffer.byteLength !== hddMB * 1024 * 1024) {
           box.hddBuffer = new ArrayBuffer(hddMB * 1024 * 1024);
         }
-        cfg.hda = { buffer: box.hddBuffer };
-        box.el.querySelector('[data-act="hdd-save"]').disabled = false;
-        hasHdd = true;
+          cfg.hda = { buffer: box.hddBuffer };
+          box.el.querySelector('[data-act="hdd-save"]').disabled = false;
+          hasHdd = true;
+        }
       }
     }
     // 起動順序:
