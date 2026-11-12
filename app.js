@@ -134,9 +134,20 @@ function captureScreenshot(box) {
     out.height = srcCanvas.height;
     ctx.drawImage(srcCanvas, 0, 0);
   } else {
-    // テキストモードは文字画面を描き直して画像化する
-    const textEl = sc.querySelector("div");
-    const lines = (textEl ? textEl.textContent : "").replace(/\n$/, "").split("\n");
+    // テキストモードは文字画面を描き直して画像化する。
+    // 行データはエミュレータ内部のテキスト画面から取る（DOMのtextContentは
+    // 改行なしで返ることがあり、1行に潰れてしまうため使わない）。
+    let lines = null;
+    try {
+      if (box.emu && box.emu.screen_adapter && box.emu.screen_adapter.get_text_screen) {
+        lines = box.emu.screen_adapter.get_text_screen();
+      }
+    } catch (e) { /* フォールバックへ */ }
+    if (!lines) {
+      const textEl = sc.querySelector("div");
+      lines = (textEl ? textEl.textContent : "").replace(/\n$/, "").split("\n");
+    }
+    while (lines.length > 1 && lines[lines.length - 1].trim() === "") lines.pop();
     ctx.font = "14px monospace";
     const charW = ctx.measureText("M").width || 8.43;
     const cols = Math.max(...lines.map((l) => l.length), 1);
