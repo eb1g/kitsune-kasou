@@ -77,6 +77,9 @@ async function startEmulator(box, extraConfig) {
     cpu_type: "x86_64",
     cpu_cores: box.cpuCores || 1,
     acpi: true,
+    // 既定の sb16 はプラグインファイル (lib64/v86-sb16.js) を読みに行き、
+    // 置いていないと起動自体がエラーになるため、音声なしを明示する
+    audio_device: "none",
   } : {
     wasm_path: "lib/v86.wasm",
     vga_memory_size: 2 * 1024 * 1024,
