@@ -1,4 +1,3 @@
-import './styles.css'
 
 const icons = {
   fox: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M8 17 6 6l10 5c2.3-1.1 4.9-1.7 7.9-1.7s5.6.6 7.9 1.7L42 6l-2 11c.7 2 1 4.2 1 6.5C41 33.6 33.4 41 24 41S7 33.6 7 23.5c0-2.3.3-4.5 1-6.5Z" fill="currentColor" opacity=".2"/><path d="M8 17 6 6l10 5c2.3-1.1 4.9-1.7 7.9-1.7s5.6.6 7.9 1.7L42 6l-2 11c.7 2 1 4.2 1 6.5C41 33.6 33.4 41 24 41S7 33.6 7 23.5c0-2.3.3-4.5 1-6.5Z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><path d="M16 25c1.3 1.5 3.2 2.3 5.6 2.3M32 25c-1.3 1.5-3.2 2.3-5.6 2.3M20.5 33.5c1-.7 2.2-1 3.5-1s2.5.3 3.5 1M20 20h.01M28 20h.01" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>`,
