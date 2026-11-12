@@ -26,8 +26,8 @@
         <option value="kolibri">KolibriOS（軽量GUI）</option>
         <option value="freedos">FreeDOS</option>
         <option value="alpine64">Alpine Linux 64bit（実験モード）</option>
-        <option value="custom">自分のイメージファイル（Windows / ReactOS / Android-x86 など）</option>
-        <option value="custom64">自分のイメージファイル（64bit実験モード・大容量HDD対応）</option>
+        <option value="custom">自分のイメージファイル（32bit）</option>
+        <option value="custom64">自分のイメージファイル（64bit）</option>
       </select>
     </label>
     <label>RAM
@@ -38,6 +38,13 @@
         <option value="256">256 MB</option>
         <option value="512">512 MB</option>
         <option value="1024">1 GB</option>
+      </select>
+    </label>
+    <label>仮想CPUコア（64bitモード用）
+      <select id="cpu-cores">
+        <option value="1" selected>1 コア</option>
+        <option value="2">2 コア</option>
+        <option value="4">4 コア</option>
       </select>
     </label>
     <button id="add-box" class="primary">＋ マシンを追加して起動</button>
@@ -61,7 +68,7 @@
         <option value="2048">空のHDD 2 GB を追加</option>
       </select>
     </label>
-    <label id="hdd-qcow-wrap" hidden>仮想ハードディスク（大容量）
+    <label id="hdd-qcow-wrap" hidden>仮想ハードディスク
       <select id="custom-hdd-qcow2">
         <option value="0">なし</option>
         <option value="100">空のHDD 100 GB を追加（スパース）</option>
@@ -69,12 +76,6 @@
       </select>
     </label>
   </div>
-  <p class="note" id="hdd-note" hidden>
-    OSをインストールする場合は「空のHDD」を追加してください（CD-ROM接続のとき有効です）。
-    Windows 98 / ME などのセットアップで「ハードディスクがない」と出るのは、HDDが接続されていないためです。
-    空のHDDは未使用領域なので、セットアップ中にパーティション作成やフォーマットを求められたら、そのまま進めてください。
-    インストール後はマシンの「💽 HDDを保存」からディスクイメージをダウンロードでき、次回はそのファイルを「ハードディスク（IMG向け）」で読み込むと続きから使えます。
-  </p>
 </section>
 
 <main id="farm" aria-live="polite"></main>
@@ -118,12 +119,8 @@
     <p>通常モードのエンジン（v86）は32bit専用のため、64bit CPUに対応した別エンジン（v64）を使う実験モードです。Alpine Linux 64bit がそのまま起動できるほか、自分の64bitイメージ（ISOなど）も読み込めます。起動に時間がかかる場合があり、RAMは512MB以上がおすすめです。安定性重視なら通常モードを使ってください。</p>
   </details>
   <details>
-    <summary>500GBのハードディスクが選べますか？</summary>
-    <p>64bit実験モードで自分のイメージを起動するとき、「空のHDD 500 GB（スパース）」が選べます。スパース形式（qcow2）なので、ファイル自体は小さく、仮想マシンからは500GBのディスクとして見えます。書き込んだ内容はメモリ上に保持されるため、電源を切ると消えます。大事なデータは残さないでください。</p>
-  </details>
-  <details>
     <summary>画面キーボードはありますか？</summary>
-    <p>各マシンの「⌨ キーボード」ボタンを押すと、Windows風の画面キーボードが開きます。スマホやタブレットでの入力に便利です。Shift / Ctrl / Alt / ⊞ キーは押すと保持され、次のキーと組み合わせて送られます（1回入力すると解除されます）。</p>
+    <p>各マシンの「⌨ キーボード」ボタンを押すと、日本語配列（JIS）の画面キーボードが開きます。半角/全角・変換・無変換・カタカナ/ひらがなキー付きで、スマホやタブレットでの入力に便利です。Shift / Ctrl / Alt / ⊞ キーは押すと保持され、次のキーと組み合わせて送られます（1回入力すると解除されます）。</p>
   </details>
   <details>
     <summary>データはサーバーに送られますか？</summary>

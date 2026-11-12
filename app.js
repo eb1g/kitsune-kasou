@@ -75,6 +75,7 @@ async function startEmulator(box, extraConfig) {
     graphics_adapter: "bochs_vga",
     vram_size: 8 * 1024 * 1024,
     cpu_type: "x86_64",
+    cpu_cores: box.cpuCores || 1,
     acpi: true,
   } : {
     wasm_path: "lib/v86.wasm",
@@ -194,20 +195,26 @@ const SCAN = {
   F7: [0x41], F8: [0x42], F9: [0x43], F10: [0x44], F11: [0x57], F12: [0x58],
   MetaLeft: [0xe0, 0x5b], ControlRight: [0xe0, 0x1d], AltRight: [0xe0, 0x38],
   ArrowUp: [0xe0, 0x48], ArrowLeft: [0xe0, 0x4b], ArrowRight: [0xe0, 0x4d], ArrowDown: [0xe0, 0x50],
-  Delete: [0xe0, 0x53],
+  Delete: [0xe0, 0x53], Insert: [0xe0, 0x52], Home: [0xe0, 0x47], End: [0xe0, 0x4f],
+  PageUp: [0xe0, 0x49], PageDown: [0xe0, 0x51], Pause: [0xe1, 0x1d, 0x45],
+  ZenkakuHankaku: [0x29], IntlYen: [0x7d], IntlRo: [0x73],
+  Convert: [0x79], NonConvert: [0x7b], KanaMode: [0x70],
 };
 const MODIFIERS = new Set(["ShiftLeft", "ShiftRight", "ControlLeft", "ControlRight", "AltLeft", "AltRight", "MetaLeft"]);
-// [表示, code, 横幅(任意)]
+// 日本語配列（JIS）キーボード。[表示, code, 横幅(任意)]、表示の "|" の後ろは小さく出すサブ表記
 const OSK_ROWS = [
-  [["Esc", "Escape"], ["F1", "F1"], ["F2", "F2"], ["F3", "F3"], ["F4", "F4"], ["F5", "F5"], ["F6", "F6"], ["F7", "F7"], ["F8", "F8"], ["F9", "F9"], ["F10", "F10"], ["F11", "F11"], ["F12", "F12"]],
-  [["`", "Backquote"], ["1", "Digit1"], ["2", "Digit2"], ["3", "Digit3"], ["4", "Digit4"], ["5", "Digit5"], ["6", "Digit6"], ["7", "Digit7"], ["8", "Digit8"], ["9", "Digit9"], ["0", "Digit0"], ["-", "Minus"], ["=", "Equal"], ["⌫", "Backspace", 2]],
-  [["Tab", "Tab", 1.5], ["Q", "KeyQ"], ["W", "KeyW"], ["E", "KeyE"], ["R", "KeyR"], ["T", "KeyT"], ["Y", "KeyY"], ["U", "KeyU"], ["I", "KeyI"], ["O", "KeyO"], ["P", "KeyP"], ["[", "BracketLeft"], ["]", "BracketRight"], ["\\", "Backslash", 1.5]],
-  [["Caps", "CapsLock", 1.8], ["A", "KeyA"], ["S", "KeyS"], ["D", "KeyD"], ["F", "KeyF"], ["G", "KeyG"], ["H", "KeyH"], ["J", "KeyJ"], ["K", "KeyK"], ["L", "KeyL"], [";", "Semicolon"], ["'", "Quote"], ["Enter", "Enter", 2.2]],
-  [["Shift", "ShiftLeft", 2.2], ["Z", "KeyZ"], ["X", "KeyX"], ["C", "KeyC"], ["V", "KeyV"], ["B", "KeyB"], ["N", "KeyN"], ["M", "KeyM"], [",", "Comma"], [".", "Period"], ["/", "Slash"], ["Shift", "ShiftRight", 2.8]],
-  [["Ctrl", "ControlLeft", 1.3], ["⊞", "MetaLeft", 1.3], ["Alt", "AltLeft", 1.3], ["Space", "Space", 6], ["Alt", "AltRight", 1.3], ["Ctrl", "ControlRight", 1.3], ["←", "ArrowLeft"], ["↑", "ArrowUp"], ["↓", "ArrowDown"], ["→", "ArrowRight"]],
+  [["ESC", "Escape"], ["F1", "F1"], ["F2", "F2"], ["F3", "F3"], ["F4", "F4"], ["F5", "F5"], ["F6", "F6"], ["F7", "F7"], ["F8", "F8"], ["F9", "F9"], ["F10", "F10"], ["F11", "F11"], ["F12", "F12"], ["Pause", "Pause"], ["Insert", "Insert"], ["Delete", "Delete"]],
+  [["半角/全角", "ZenkakuHankaku", 1.6], ["1|!", "Digit1"], ["2|\"", "Digit2"], ["3|#", "Digit3"], ["4|$", "Digit4"], ["5|%", "Digit5"], ["6|&", "Digit6"], ["7|'", "Digit7"], ["8|(", "Digit8"], ["9|)", "Digit9"], ["0", "Digit0"], ["-", "Minus"], ["^", "Equal"], ["¥", "IntlYen"], ["Back Space", "Backspace", 2]],
+  [["Tab", "Tab", 1.5], ["Q|た", "KeyQ"], ["W|て", "KeyW"], ["E|い", "KeyE"], ["R|す", "KeyR"], ["T|か", "KeyT"], ["Y|ん", "KeyY"], ["U|な", "KeyU"], ["I|に", "KeyI"], ["O|ら", "KeyO"], ["P|せ", "KeyP"], ["@", "BracketLeft"], ["[", "BracketRight"]],
+  [["Caps Lock|英数", "CapsLock", 1.9], ["A|ち", "KeyA"], ["S|と", "KeyS"], ["D|し", "KeyD"], ["F|は", "KeyF"], ["G|き", "KeyG"], ["H|く", "KeyH"], ["J|ま", "KeyJ"], ["K|の", "KeyK"], ["L|り", "KeyL"], [";", "Semicolon"], [":", "Quote"], ["]", "Backslash"], ["Enter", "Enter", 2.1]],
+  [["Shift", "ShiftLeft", 2.2], ["Z|つ", "KeyZ"], ["X|さ", "KeyX"], ["C|そ", "KeyC"], ["V|ひ", "KeyV"], ["B|こ", "KeyB"], ["N|み", "KeyN"], ["M|も", "KeyM"], [",|ね", "Comma"], [".|る", "Period"], ["/|め", "Slash"], ["\\|ろ", "IntlRo"], ["Shift", "ShiftRight", 2.6]],
+  [["Ctrl", "ControlLeft", 1.3], ["⊞|Win", "MetaLeft", 1.3], ["Alt", "AltLeft", 1.3], ["無変換", "NonConvert", 1.7], ["Space", "Space", 5], ["変換", "Convert", 1.7], ["カタカナ|ひらがな", "KanaMode", 1.9], ["Alt", "AltRight", 1.3], ["Ctrl", "ControlRight", 1.3]],
+  [["Home", "Home"], ["PgUp", "PageUp"], ["PgDn", "PageDown"], ["End", "End"], ["←", "ArrowLeft"], ["↑", "ArrowUp"], ["↓", "ArrowDown"], ["→", "ArrowRight"]],
 ];
 
-function breakCode(make) {
+const BREAK_OVERRIDES = { Pause: [0xe1, 0x9d, 0xc5] };
+function breakCode(make, code) {
+  if (code && BREAK_OVERRIDES[code]) return BREAK_OVERRIDES[code];
   return make.length === 2 ? [0xe0, make[1] | 0x80] : [make[0] | 0x80];
 }
 
@@ -219,7 +226,7 @@ function sendCombo(box, codes) {
       const make = SCAN[code];
       if (!make) continue;
       downs.push(...make);
-      ups.unshift(...breakCode(make));
+      ups.unshift(...breakCode(make, code));
     }
     if (downs.length) box.emu.keyboard_send_scancodes(downs.concat(ups));
   } else if (typeof box.emu.keyboard_send_keys === "function") {
@@ -237,7 +244,16 @@ function buildKeyboard(box) {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "osk-key";
-      btn.textContent = label;
+      if (label.includes("|")) {
+        const [main, sub] = label.split("|");
+        btn.innerHTML = "";
+        btn.appendChild(document.createTextNode(main));
+        const sm = document.createElement("small");
+        sm.textContent = sub;
+        btn.appendChild(sm);
+      } else {
+        btn.textContent = label;
+      }
       if (flex) btn.style.flex = `${flex} 1 0`;
       btn.dataset.code = code;
       btn.addEventListener("pointerdown", (ev) => {
@@ -308,18 +324,20 @@ async function unpackState(payload) {
 
 // ---------- マシンの箱 ----------
 
-function createBox(presetKey, memoryMB) {
+function createBox(presetKey, memoryMB, cpuCores) {
   counter += 1;
   const el = template.content.firstElementChild.cloneNode(true);
   const isCustom = presetKey === "custom" || presetKey === "custom64";
+  const is64Box = presetKey === "custom64" || (PRESETS[presetKey] && PRESETS[presetKey].engine === "v64");
   const name = isCustom
-    ? (presetKey === "custom64" ? "カスタムイメージ（64bit実験）" : "カスタムイメージ")
+    ? (presetKey === "custom64" ? "カスタムイメージ（64bit）" : "カスタムイメージ（32bit）")
     : PRESETS[presetKey].label;
-  el.querySelector(".box-title").textContent = `🦊 ${name} #${counter}（RAM ${memoryMB}MB）`;
+  const coreNote = is64Box && cpuCores > 1 ? `・CPU ${cpuCores}コア` : "";
+  el.querySelector(".box-title").textContent = `🦊 ${name} #${counter}（RAM ${memoryMB}MB${coreNote}）`;
   farm.appendChild(el);
 
   const box = {
-    el, emu: null, presetKey, memoryMB, num: counter,
+    el, emu: null, presetKey, memoryMB, cpuCores: cpuCores || 1, num: counter,
     engine: presetKey === "custom64" || (PRESETS[presetKey] && PRESETS[presetKey].engine === "v64") ? "v64" : "v86",
     powerBtn: el.querySelector('[data-act="power"]'),
   };
@@ -412,33 +430,36 @@ function syncLauncher() {
   const v = presetSel.value;
   const custom = v === "custom" || v === "custom64";
   document.getElementById("custom-row").hidden = !custom;
-  document.getElementById("hdd-note").hidden = !custom;
   document.getElementById("hdd-raw-wrap").hidden = v !== "custom";
   document.getElementById("hdd-qcow-wrap").hidden = v !== "custom64";
   if (v === "alpine64") document.getElementById("memory").value = "512";
 }
 presetSel.addEventListener("change", syncLauncher);
+const cpuSel = document.getElementById("cpu-cores");
 document.getElementById("add-box").addEventListener("click", () => {
   const memoryMB = parseInt(document.getElementById("memory").value, 10);
-  const box = createBox(presetSel.value, memoryMB);
+  const cpuCores = parseInt(cpuSel.value, 10) || 1;
+  const box = createBox(presetSel.value, memoryMB, cpuCores);
   bootPreset(box);
 });
-// ランチャーの選択（OS・RAM）を localStorage に覚えておく
+// ランチャーの選択（OS・RAM・CPUコア）を localStorage に覚えておく
 const memorySel = document.getElementById("memory");
 try {
   const saved = JSON.parse(localStorage.getItem("kitsune-launcher") || "null");
   if (saved) {
     if (saved.preset) presetSel.value = saved.preset;
     if (saved.memory) memorySel.value = saved.memory;
+    if (saved.cpu) cpuSel.value = saved.cpu;
   }
 } catch (e) { /* 保存が無ければ既定値 */ }
 const saveLauncher = () => {
   try {
-    localStorage.setItem("kitsune-launcher", JSON.stringify({ preset: presetSel.value, memory: memorySel.value }));
+    localStorage.setItem("kitsune-launcher", JSON.stringify({ preset: presetSel.value, memory: memorySel.value, cpu: cpuSel.value }));
   } catch (e) { /* 保存できない環境では何もしない */ }
 };
 presetSel.addEventListener("change", saveLauncher);
 memorySel.addEventListener("change", saveLauncher);
+cpuSel.addEventListener("change", saveLauncher);
 syncLauncher();
 
 // 最初に Linux を1台、起動した状態で表示する

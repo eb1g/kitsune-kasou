@@ -41,4 +41,6 @@ a { color:var(--accent); }
 .osk-key { flex:1 1 0; min-width:0; padding:9px 2px; font-size:.8rem; background:#fdfcf9; border:1px solid #cfc4b4; border-bottom-width:3px; border-radius:7px; cursor:pointer; color:var(--text); }
 .osk-key:active { background:#ffe9d2; transform:translateY(1px); }
 .osk-key.active { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700; }
+.osk-key small { display:block; font-size:.62rem; color:#9a7c5c; line-height:1.1; }
+.osk-key.active small { color:#ffe9d2; }
 @media (max-width:520px){ .osk-key{ font-size:.68rem; padding:8px 1px; } }
