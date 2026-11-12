@@ -123,6 +123,42 @@ function stopEmulator(box) {
   sc.innerHTML = '<div style="white-space: pre; font: 14px monospace; line-height: 14px"></div><canvas style="display: none"></canvas>';
 }
 
+function captureScreenshot(box) {
+  const sc = box.el.querySelector(".screen_container");
+  const srcCanvas = sc.querySelector("canvas");
+  const out = document.createElement("canvas");
+  const ctx = out.getContext("2d");
+  const inGraphics = srcCanvas && srcCanvas.width > 0 && srcCanvas.style.display !== "none";
+  if (inGraphics) {
+    out.width = srcCanvas.width;
+    out.height = srcCanvas.height;
+    ctx.drawImage(srcCanvas, 0, 0);
+  } else {
+    // テキストモードは文字画面を描き直して画像化する
+    const textEl = sc.querySelector("div");
+    const lines = (textEl ? textEl.textContent : "").replace(/\n$/, "").split("\n");
+    ctx.font = "14px monospace";
+    const charW = ctx.measureText("M").width || 8.43;
+    const cols = Math.max(...lines.map((l) => l.length), 1);
+    out.width = Math.ceil(cols * charW);
+    out.height = Math.max(lines.length, 1) * 14;
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.font = "14px monospace";
+    ctx.fillStyle = "#ccc";
+    ctx.textBaseline = "top";
+    lines.forEach((l, i) => ctx.fillText(l, 0, i * 14));
+  }
+  out.toBlob((blob) => {
+    if (!blob) return;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `kitsune-shot-${box.num}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }, "image/png");
+}
+
 function lockMouse(box) {
   if (box.emu && typeof box.emu.lock_mouse === "function") {
     try { box.emu.lock_mouse(); } catch (e) { /* ブラウザが拒否した場合は何もしない */ }
@@ -481,6 +517,8 @@ function createBox(presetKey, memoryMB, cpuCores, customName, network) {
     const buf = await f.arrayBuffer();
     if (box.emu && box.emu.restore_state) { await box.emu.restore_state(buf); setStatus(box, "動作中（復元済み）", true); }
   });
+  const shotBtn = el.querySelector('[data-act="shot"]');
+  if (shotBtn) shotBtn.addEventListener("click", () => captureScreenshot(box));
   el.querySelector('[data-act="full"]').addEventListener("click", () => {
     const sc = el.querySelector(".screen_container");
     if (sc.requestFullscreen) sc.requestFullscreen();
