@@ -26,3 +26,10 @@ button:disabled { opacity:.45; cursor:default; }
 footer { text-align:center; font-size:.82rem; color:#8a6d52; padding:10px 16px 34px; line-height:1.8; }
 a { color:var(--accent); }
 @media (max-width:520px){ #farm{grid-template-columns:1fr;} }
+
+.hint { font-size:.8rem; color:#8a6d52; margin:8px 2px 0; }
+#faq details { border-top:1px solid var(--line); padding:10px 2px; }
+#faq details:first-of-type { border-top:none; }
+#faq summary { cursor:pointer; font-weight:700; }
+#faq details p { line-height:1.7; font-size:.92rem; color:#574231; }
+.screen_container canvas { display:block; margin:0 auto; max-width:100%; }

@@ -69,6 +69,12 @@ function stopEmulator(box) {
   sc.innerHTML = '<div style="white-space: pre; font: 14px monospace; line-height: 14px"></div><canvas style="display: none"></canvas>';
 }
 
+function lockMouse(box) {
+  if (box.emu && typeof box.emu.lock_mouse === "function") {
+    try { box.emu.lock_mouse(); } catch (e) { /* ブラウザが拒否した場合は何もしない */ }
+  }
+}
+
 async function bootPreset(box) {
   if (box.presetKey === "custom") {
     const file = document.getElementById("custom-file").files[0];
@@ -77,6 +83,18 @@ async function bootPreset(box) {
     const buffer = await file.arrayBuffer();
     const cfg = { boot_order: type === "fda" ? 0x231 : type === "cdrom" ? 0x213 : 0x132 };
     cfg[type] = { buffer };
+    if (type === "hda") {
+      // 自分のディスクイメージ自体がHDD。保存ボタンで書き戻せるよう参照を保持
+      box.hddBuffer = buffer;
+      box.el.querySelector('[data-act="hdd-save"]').disabled = false;
+    }
+    // 空の仮想ハードディスクを追加（CD-ROM / フロッピー接続のとき）
+    const hddMB = parseInt(document.getElementById("custom-hdd").value, 10);
+    if (type !== "hda" && hddMB > 0) {
+      box.hddBuffer = new ArrayBuffer(hddMB * 1024 * 1024);
+      cfg.hda = { buffer: box.hddBuffer };
+      box.el.querySelector('[data-act="hdd-save"]').disabled = false;
+    }
     box.customCfg = cfg;
     startEmulator(box, cfg);
     return;
@@ -95,11 +113,20 @@ function createBox(presetKey, memoryMB) {
   el.querySelector(".box-title").textContent = `🦊 ${name} #${counter}（RAM ${memoryMB}MB）`;
   farm.appendChild(el);
 
-  const box = { el, emu: null, presetKey, memoryMB, powerBtn: el.querySelector('[data-act="power"]') };
+  const box = { el, emu: null, presetKey, memoryMB, num: counter, powerBtn: el.querySelector('[data-act="power"]') };
   boxes.add(box);
 
-  el.querySelector(".screen_container").addEventListener("mousedown", () => focusBox(box));
+  el.querySelector(".screen_container").addEventListener("mousedown", () => { focusBox(box); lockMouse(box); });
   box.powerBtn.addEventListener("click", () => { box.emu ? stopEmulator(box) : bootPreset(box); });
+  el.querySelector('[data-act="mouse"]').addEventListener("click", () => lockMouse(box));
+  el.querySelector('[data-act="hdd-save"]').addEventListener("click", () => {
+    if (!box.hddBuffer) return;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([box.hddBuffer], { type: "application/octet-stream" }));
+    a.download = `kitsune-hdd-${box.num}.img`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  });
   el.querySelector('[data-act="restart"]').addEventListener("click", () => { if (box.emu && box.emu.restart) box.emu.restart(); });
   el.querySelector('[data-act="cad"]').addEventListener("click", () => {
     if (box.emu && box.emu.keyboard_send_scancodes) {
@@ -112,7 +139,7 @@ function createBox(presetKey, memoryMB) {
     const state = await box.emu.save_state();
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([state], { type: "application/octet-stream" }));
-    a.download = `kitsune-vm-${counter}.state.bin`;
+    a.download = `kitsune-vm-${box.num}.state.bin`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   });
@@ -138,7 +165,9 @@ function createBox(presetKey, memoryMB) {
 // ランチャー
 const presetSel = document.getElementById("preset");
 presetSel.addEventListener("change", () => {
-  document.getElementById("custom-row").hidden = presetSel.value !== "custom";
+  const custom = presetSel.value === "custom";
+  document.getElementById("custom-row").hidden = !custom;
+  document.getElementById("hdd-note").hidden = !custom;
 });
 document.getElementById("add-box").addEventListener("click", () => {
   const memoryMB = parseInt(document.getElementById("memory").value, 10);

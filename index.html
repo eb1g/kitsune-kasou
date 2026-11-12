@@ -47,7 +47,21 @@
         <option value="fda">フロッピー</option>
       </select>
     </label>
+    <label>仮想ハードディスク
+      <select id="custom-hdd">
+        <option value="0">なし</option>
+        <option value="512">空のHDD 512 MB を追加</option>
+        <option value="1024" selected>空のHDD 1 GB を追加</option>
+        <option value="2048">空のHDD 2 GB を追加</option>
+      </select>
+    </label>
   </div>
+  <p class="note" id="hdd-note" hidden>
+    OSをインストールする場合は「空のHDD」を追加してください（CD-ROM接続のとき有効です）。
+    Windows 98 / ME などのセットアップで「ハードディスクがない」と出るのは、HDDが接続されていないためです。
+    空のHDDは未使用領域なので、セットアップ中にパーティション作成やフォーマットを求められたら、そのまま進めてください。
+    インストール後はマシンの「💽 HDDを保存」からディスクイメージをダウンロードでき、次回はそのファイルを「ハードディスク（IMG向け）」で読み込むと続きから使えます。
+  </p>
   <p class="note">
     対応の目安：Linux（32bit）・FreeDOS・KolibriOS は同梱イメージですぐ起動します。
     Windows は 98 / 2000 / XP のような古い32bit版が、自分の正規イメージを使う場合のみ対象です（Windows 10 / 11 はブラウザエミュレーションでは動きません）。
@@ -72,18 +86,44 @@
     <div class="box-controls">
       <button data-act="power" class="primary">⏻ 電源ON</button>
       <button data-act="restart">↻ 再起動</button>
+      <button data-act="mouse">🖱 マウスを合わせる</button>
       <button data-act="cad">Ctrl+Alt+Del</button>
       <button data-act="save">💾 状態を保存</button>
       <label class="restore-label">📂 状態を開く<input type="file" data-act="restore" accept=".bin,.state" hidden></label>
+      <button data-act="hdd-save" disabled>💽 HDDを保存</button>
       <button data-act="full">⛶ 全画面</button>
       <button data-act="close" class="danger">✕ 閉じる</button>
     </div>
+    <p class="hint">マウスカーソルがずれる時は、画面をクリックするか「🖱 マウスを合わせる」を押してください（マウスが画面にロックされます。解除は Esc キー）。</p>
   </article>
 </template>
 
+<section class="panel" id="faq">
+  <h2>よくある質問</h2>
+  <details>
+    <summary>きつね仮想とは何ですか？</summary>
+    <p>きつね仮想 — エンジン: v86（x86 エミュレーター / WebAssembly）。計算はすべてあなたのブラウザの中で行われ、データはサーバーに送信されません。インストールも登録も不要で、開いたタブの中で本物のOSが起動します。</p>
+  </details>
+  <details>
+    <summary>どのOSが動きますか？</summary>
+    <p>同梱の Linux / Linux 3 / KolibriOS / FreeDOS はそのまま起動します。Windows 98 / 2000 / XP や ReactOS は、自分のイメージファイル（.iso / .img）を読み込めば起動できます。Windows 10 / 11 など64bitのOSは動きません。Android は実験扱いで、まともに動作しない場合があります。</p>
+  </details>
+  <details>
+    <summary>Windowsのセットアップで「ハードディスクがない」と言われます</summary>
+    <p>仮想ハードディスクが接続されていないためです。自分のイメージから起動するときに「仮想ハードディスク」で「空のHDD」を選んでから起動し直してください。空のHDDは未使用領域なので、セットアップ中にパーティションの作成やフォーマットを求められたら、そのまま進めてください。インストール後は「💽 HDDを保存」でディスクをファイルに保存でき、次回はそのファイルをハードディスクとして読み込めます。</p>
+  </details>
+  <details>
+    <summary>マウスカーソルが自分のカーソルと合いません</summary>
+    <p>画面をクリックするか、マシンの「🖱 マウスを合わせる」ボタンを押してください。マウスが画面の中にロックされ、仮想マシン内のカーソルと動きが合うようになります。ロックの解除は Esc キーです。</p>
+  </details>
+  <details>
+    <summary>データはサーバーに送られますか？</summary>
+    <p>送られません。仮想マシンはあなたのブラウザの中で動き、読み込んだイメージファイルや仮想ハードディスクの内容が外部に送信されることはありません。</p>
+  </details>
+</section>
+
 <footer>
-  <p>きつね仮想 — エンジン: <a href="https://github.com/copy/v86">v86</a>（x86 エミュレーター / WebAssembly）。計算はすべてあなたのブラウザの中で行われ、データはサーバーに送信されません。</p>
-  <p>元になったサイト: <a href="https://www.farmsub.com/">BoxLinuxFarm（FarmSub）</a> と同じ v86 系の仕組みを使っています。</p>
+  <p>🦊 きつね仮想</p>
 </footer>
 
 <script src="app.js"></script>
