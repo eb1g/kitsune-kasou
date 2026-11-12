@@ -136,12 +136,13 @@ async function bootPreset(box) {
     if (!file) { setStatus(box, "イメージファイルを選んでください", false); return; }
     const type = document.getElementById("custom-type").value;
     const buffer = await file.arrayBuffer();
-    const cfg = { boot_order: type === "fda" ? 0x231 : type === "cdrom" ? 0x213 : 0x132 };
+    const cfg = {};
     cfg[type] = { buffer };
     if (type === "hda") {
       box.hddBuffer = buffer;
       box.el.querySelector('[data-act="hdd-save"]').disabled = false;
     }
+    let hasHdd = type === "hda";
     if (box.presetKey === "custom64") {
       // 64bitモード: qcow2 スパースHDD（CD-ROM接続のとき）
       const qEl = document.getElementById("custom-hdd-qcow2");
@@ -150,6 +151,7 @@ async function bootPreset(box) {
         try {
           cfg.hda = await qcow2Config(QCOW2_DISKS[q]);
           box.qcow2 = true;
+          hasHdd = true;
         } catch (err) {
           setStatus(box, err.message, false);
           return;
@@ -160,11 +162,19 @@ async function bootPreset(box) {
       const hddEl = document.getElementById("custom-hdd");
       const hddMB = hddEl ? parseInt(hddEl.value, 10) : 0;
       if (type !== "hda" && hddMB > 0) {
-        box.hddBuffer = new ArrayBuffer(hddMB * 1024 * 1024);
+        // 既に同じサイズのHDDがあれば中身ごと使い回す（電源入れ直しで初期化しない）
+        if (!box.hddBuffer || box.hddBuffer.byteLength !== hddMB * 1024 * 1024) {
+          box.hddBuffer = new ArrayBuffer(hddMB * 1024 * 1024);
+        }
         cfg.hda = { buffer: box.hddBuffer };
         box.el.querySelector('[data-act="hdd-save"]').disabled = false;
+        hasHdd = true;
       }
     }
+    // 起動順序: HDDがある場合はHDD優先にする。空のHDDは起動できずCD/フロッピーに
+    // フォールスルーするので、インストール開始時はCDから起動し、セットアップが
+    // HDDを起動可能にした後の再起動ではHDDから続きが起動する（最初に戻らない）。
+    cfg.boot_order = hasHdd ? 0x132 : type === "fda" ? 0x231 : 0x213;
     box.customCfg = cfg;
     startEmulator(box, cfg);
     return;
@@ -366,6 +376,16 @@ function createBox(presetKey, memoryMB, cpuCores, customName) {
     const osk = el.querySelector(".osk");
     osk.hidden = !osk.hidden;
     focusBox(box);
+  });
+  const bootHddBtn = el.querySelector('[data-act="boot-hdd"]');
+  if (bootHddBtn && presetKey === "custom") bootHddBtn.hidden = false;
+  if (bootHddBtn) bootHddBtn.addEventListener("click", () => {
+    // 同じディスク内容のまま、起動順序だけHDD優先にして起動し直す
+    if (!box.customCfg) return;
+    const cfg = Object.assign({}, box.customCfg, { boot_order: 0x132 });
+    box.customCfg = cfg;
+    stopEmulator(box);
+    startEmulator(box, cfg);
   });
   el.querySelector('[data-act="hdd-save"]').addEventListener("click", () => {
     if (!box.hddBuffer) return;
