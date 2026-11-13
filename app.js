@@ -530,7 +530,7 @@ async function unpackState(payload) {
 function renderTitle(box) {
   const name = box.customName || box.defaultName;
   const coreNote = box.is64Box && box.cpuCores > 1 ? `・CPU ${box.cpuCores}コア` : "";
-  const cpuNote = box.cpuMode === "compat" ? "・互換CPU" : "";
+  const cpuNote = box.cpuMode === "compat" ? "・互換CPU" : "・高速CPU";
   box.el.querySelector(".box-title").textContent = `🦊 ${name} #${box.num}（RAM ${box.memoryMB}MB${coreNote}${cpuNote}）`;
 }
 
